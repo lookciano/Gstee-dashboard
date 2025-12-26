@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controle de Documentos de Engenharia da GSTE</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <script src="https://code.highcharts.com/highcharts.js"></script>
+    <script src="https://code.highcharts.com/highcharts-3d.js"></script>
+    <script src="https://code.highcharts.com/modules/cylinder.js"></script>
+    <script src="https://code.highcharts.com/modules/exporting.js"></script>
+    <script src="https://code.highcharts.com/modules/accessibility.js"></script>
+
+    <style>
+        :root {
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --bg-card: #ffffff;
+            --text-primary: #333;
+            --border-color: #ddd;
+            
+            /* Cores de Status */
+            --color-green-light: #d4edda;
+            --text-green-light: #155724;
+            --color-blue: #cce5ff;
+            --text-blue: #004085;
+            --color-yellow: #fff3cd;
+            --text-yellow: #856404;
+            --color-green-dark: #198754;
+            --text-green-dark: #ffffff;
+            --color-orange-dark: #fd7e14;
+            --text-orange-dark: #ffffff;
+            --color-red: #f8d7da;
+            --text-red: #721c24;
+        }
+
+        body {
+            font-family: var(--font-family);
+            background: linear-gradient(135deg, #008e9a, #6f6e6e);
+            min-height: 100vh;
+            color: var(--text-primary);
+            margin: 0;
+            padding: 10px;
+        }
+
+        h1 {
+            margin-top: 0;
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: center;
+        }
+
+        .container {
+            width: 98%;
+            max-width: none;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        /* --- Filtros --- */
+        .filters-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: start;
+            margin-bottom: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            min-width: 180px;
+            position: relative; 
+        }
+
+        .filter-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #555;
+        }
+
+        /* Multiselect CSS */
+        .multiselect-dropdown { position: relative; user-select: none; }
+        .multiselect-btn {
+            width: 100%;
+            padding: 8px 12px; background-color: white;
+            border: 1px solid var(--border-color); border-radius: 4px;
+            cursor: pointer; text-align: left; display: flex;
+            justify-content: space-between;
+            align-items: center; font-size: 0.9rem;
+        }
+        .multiselect-btn::after { content: '▼'; font-size: 0.7em; margin-left: 10px; opacity: 0.6; }
+        .multiselect-content {
+            display: none;
+            position: absolute; top: 100%; left: 0; width: 100%;
+            min-width: 250px; max-height: 300px; overflow-y: auto;
+            background-color: white; border: 1px solid var(--border-color);
+            border-radius: 4px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            z-index: 1000; padding: 5px 0;
+        }
+        .multiselect-content.show { display: block; }
+        .multiselect-option { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; font-size: 0.9rem; }
+        .multiselect-option:hover { background-color: #f1f1f1; }
+        .multiselect-option input { margin-right: 10px; cursor: pointer; }
+        
+        .clear-btn {
+            margin-top: 23px;
+            padding: 9px 15px; cursor: pointer;
+            background: #6c757d; color: white; border: none;
+            border-radius: 4px; font-size: 0.9rem;
+        }
+        .clear-btn:hover { background: #5a6268; }
+
+        /* --- Upload --- */
+        .upload-controls {
+            display: flex;
+            gap: 20px; margin-bottom: 10px;
+            justify-content: center; align-items: center;
+        }
+        .upload-area {
+            border: 2px dashed #ccc;
+            padding: 20px; text-align: center;
+            cursor: pointer; transition: border 0.3s; margin-top: 10px;
+        }
+        .upload-area:hover { border-color: #66afe9; background-color: #f9fbfd; }
+
+        /* --- Área dos Gráficos (Lado a Lado) --- */
+        .charts-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chart-container {
+            flex: 1;
+            min-width: 400px;
+            height: 400px; /* Altura fixa para Highcharts */
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+        }
+
+        /* --- Tabela --- */
+        .table-responsive { overflow-x: auto; }
+        table {
+            width: 100%;
+            border-collapse: collapse; font-size: 0.85rem; table-layout: fixed;
+        }
+        
+        /* Larguras Iniciais das Colunas */
+        table th:nth-child(1) { width: 15%; } /* Título */
+        table th:nth-child(2) { width: 25%; } /* Descrição */
+        table th:nth-child(3) { width: 8%; }  /* Escopo */
+        table th:nth-child(4) { width: 12%; } /* Fornecedor */
+        table th:nth-child(5) { width: 12%; } /* Subestação */
+        table th:nth-child(6) { width: 18%; } /* Status */
+        table th:nth-child(7) { width: 10%; } /* Data */
+
+        thead { position: sticky; top: 0; background-color: #343a40; color: white; z-index: 10; }
+        th, td { 
+            padding: 10px 12px; 
+            text-align: left; 
+            border-bottom: 1px solid var(--border-color); 
+            word-wrap: break-word; 
+            position: relative;
+        }
+        th { cursor: pointer; user-select: none; }
+        th:hover { background-color: #495057; }
+
+        /* Estilo da alça de redimensionamento */
+        .resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 5px;
+            cursor: col-resize;
+            user-select: none;
+            height: 100%;
+            z-index: 1;
+        }
+        .resizer:hover, .resizing {
+            background-color: #66afe9;
+        }
+
+        /* Cores das Linhas */
+        tr.status-verde-claro { background-color: var(--color-green-light); color: var(--text-green-light); }
+        tr.status-azul { background-color: var(--color-blue); color: var(--text-blue); }
+        tr.status-amarelo { background-color: var(--color-yellow); color: var(--text-yellow); }
+        tr.status-verde-escuro { background-color: var(--color-green-dark); color: var(--text-green-dark); }
+        tr.status-laranja-escuro { background-color: var(--color-orange-dark); color: var(--text-orange-dark); }
+        tr.status-vermelho { background-color: var(--color-red); color: var(--text-red); }
+        
+        tr.status-verde-escuro a, tr.status-laranja-escuro a { color: white; text-decoration: underline; }
+        .stats-summary { display: flex; justify-content: space-between; margin-bottom: 10px; font-weight: bold; }
+        #fileInput { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="card">
+        <h1>Controle de Documentos de Engenharia da GSTE</h1>
+        
+        <div class="upload-controls">
+            <div>
+                <label for="encodingSelect" style="font-weight: bold; margin-right: 5px;">Codificação:</label>
+                <select id="encodingSelect" style="padding: 5px; border-radius: 4px; border: 1px solid #ccc;">
+                    <option value="AUTO">Automático (Recomendado)</option>
+                    <option value="UTF-8">UTF-8 (Padrão Novo)</option>
+                    <option value="ISO-8859-1">Latin1 (Padrão Antigo)</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="upload-area" onclick="document.getElementById('fileInput').click()">
+            <h3>Clique para fazer Upload dos Arquivos (CSV)</h3>
+            <p>Suporta arquivos com acentuação correta (Detecção Automática de UTF-8 e Latin1)</p>
+            <input type="file" id="fileInput" accept=".csv,.json" multiple onchange="handleFileUpload(event)">
+        </div>
+    </div>
+
+    <div class="card" id="dashboardPanel" style="display:none;">
+        <div class="filters-container">
+            <div id="filterProjectContainer" class="filter-group"></div>
+            <div id="filterStatusContainer" class="filter-group"></div>
+            <div id="filterSubstationContainer" class="filter-group"></div>
+            <div id="filterPhaseContainer" class="filter-group"></div>
+            <div id="filterScopeContainer" class="filter-group"></div>
+            <div id="filterTechGroupContainer" class="filter-group"></div>
+            <div id="filterVendorContainer" class="filter-group"></div>
+            
+            <div class="filter-group">
+                <button class="clear-btn" onclick="resetFilters()">Limpar Filtros</button>
+            </div>
+        </div>
+
+        <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+
+        <div class="charts-row">
+            <div id="pieChartContainer" class="chart-container"></div>
+            <div id="barChartContainer" class="chart-container"></div>
+        </div>
+    </div>
+
+    <div class="card" id="tablePanel" style="display:none;">
+        <div class="stats-summary">
+            <span id="totalCount">Total: 0</span>
+            <span id="filteredCount">Exibindo: 0</span>
+        </div>
+        <div class="table-responsive">
+            <table id="docTable">
+                <thead>
+                    <tr>
+                        <th onclick="sortTable('titulo')">Título <span class="sort-icon">⇅</span></th>
+                        <th onclick="sortTable('descricao')">Descrição <span class="sort-icon">⇅</span></th>
+                        <th onclick="sortTable('escopo')">Escopo <span class="sort-icon">⇅</span></th>
+                        <th onclick="sortTable('fornecedor')">Fornecedor <span class="sort-icon">⇅</span></th>
+                        <th onclick="sortTable('subestacao')">Subestação <span class="sort-icon">⇅</span></th>
+                        <th onclick="sortTable('status')">Status <span class="sort-icon">⇅</span></th>
+                        <th onclick="sortTable('data')">Última Atualização <span class="sort-icon">⇅</span></th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- Configuração e Dados Globais ---
+    let rawData = [];
+    let filteredData = [];
+
+    // Estado dos Filtros
+    let activeFilters = {
+        project: [],
+        status: [],
+        substation: [],
+        phase: [],
+        scope: [],
+        vendor: [],
+        technicalGroup: [] 
+    };
+    const substationMap = {
+        'CID02': 'SE Ceará Mirim',
+        'JPSE': 'SE João Pessoa',
+        'SE5P1': 'SE Pau Ferro',
+        'SE5G1': 'SE Garanhuns',
+        'MSI08': 'SE Messias',
+        'PLS': 'SE Pilões',
+        'CAP3': 'SE Capelinha 3',
+        'IBC': 'SE Ibicoara', 
+        'IGA': 'SE Igaporã',
+        'ITB5': 'SE Itabira 5',
+        'JUS': 'SE Jussiape',
+        'SJP': 'SE São João do Paraíso',
+        'OUR': 'SE Ourolândia'
+    };
+    const statusConfig = {
+        'VERDE_CLARO': { label: 'Aprovado / Comentários', class: 'status-verde-claro', color: '#d4edda', hex: '#28a745' },
+        'AZUL': { label: 'Em Análise', class: 'status-azul', color: '#cce5ff', hex: '#007bff' },
+        'AMARELO': { label: 'Previsto', class: 'status-amarelo', color: '#fff3cd', hex: '#ffc107' },
+        'VERDE_ESCURO': { label: 'Liberado Execução', class: 'status-verde-escuro', color: '#198754', hex: '#155724' },
+        'LARANJA': { label: 'Não Aprovado / Recusado', class: 'status-laranja-escuro', color: '#fd7e14', hex: '#fd7e14' },
+        'VERMELHO': { label: 'Obsoleto / Cancelado', class: 'status-vermelho', color: '#dc3545', hex: '#dc3545' },
+        'OUTROS': { label: 'Indefinido', class: '', color: '#e2e3e5', hex: '#6c757d' }
+    };
+    let sortState = { column: null, asc: true };
+
+    // --- Processamento de Arquivos Inteligente ---
+    function handleFileUpload(event) {
+        const files = event.target.files;
+        if (!files.length) return;
+
+        rawData = []; 
+        let filesProcessed = 0;
+        const userEncoding = document.getElementById('encodingSelect').value;
+        Array.from(files).forEach(file => {
+            parseFile(file, userEncoding, (data, fields) => {
+                processCSVData(data, fields);
+                filesProcessed++;
+                if (filesProcessed === files.length) {
+                    initDashboard();
+                }
+            });
+        });
+    }
+
+    function parseFile(file, encodingMode, callback) {
+        let currentEncoding = (encodingMode === 'AUTO') ? 'UTF-8' : encodingMode;
+
+        Papa.parse(file, {
+            header: true,
+            delimiter: "", 
+            encoding: currentEncoding,
+            skipEmptyLines: true,
+            complete: function(results) {
+                if (encodingMode === 'AUTO') {
+                    const headers = results.meta.fields || [];
+                    const firstRow = results.data[0] || {};
+                    const hasErrorChar = headers.some(h => h.includes('')) || 
+                                         Object.values(firstRow).some(v => typeof v === 'string' && v.includes(''));
+                    
+                    if (hasErrorChar) {
+                        console.warn("Detecção Auto: Tentando ISO-8859-1.");
+                        Papa.parse(file, {
+                            header: true, delimiter: "", encoding: "ISO-8859-1", skipEmptyLines: true,
+                            complete: function(retryResults) { 
+                                callback(retryResults.data, retryResults.meta.fields); 
+                            }
+                        });
+                        return;
+                    }
+                }
+                callback(results.data, results.meta.fields);
+            },
+            error: function(err) { alert("Erro ao ler o arquivo " + file.name); }
+        });
+    }
+
+    function processCSVData(data, fields) {
+        const mapped = data.map(row => {
+            const keys = Object.keys(row);
+            const getExact = (target) => {
+                const key = keys.find(k => k.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === target);
+                return key ? row[key] : '';
+            }
+
+            const titulo = getExact('titulo') || '';
+            const descricao = getExact('descricao') || '';
+            const statusRaw = getExact('estado atual') || getExact('status') || '';
+            const autorRaw = getExact('autor') || getExact('fornecedor') || '';
+             
+            // --- Lógica de Data: Colunas K (índice 10) até AJ (índice 35) ---
+            let latestDateStr = '';
+            let latestDateObj = null;
+
+            if (fields && fields.length > 10) {
+                const maxIndex = Math.min(fields.length - 1, 35);
+                for (let i = 10; i <= maxIndex; i++) {
+                    const colName = fields[i];
+                    const val = row[colName];
+                    if (val && typeof val === 'string') {
+                        const parsedDate = tryParseDate(val);
+                        if (parsedDate) {
+                            if (!latestDateObj || parsedDate > latestDateObj) {
+                                latestDateObj = parsedDate;
+                                latestDateStr = val; 
+                            }
+                        }
+                    }
+                }
+            }
+
+            let escopo = getExact('pasta') || getExact('escopo') || '';
+            const caminho = getExact('caminho');
+            if (!escopo && caminho) escopo = extractScopeFromPath(caminho);
+            if (!escopo) escopo = 'GERAL'; 
+
+            const subInfo = detectSubstation(titulo + ' ' + descricao);
+            const fase = detectPhase(titulo);
+            const projeto = detectProject(titulo);
+            const statusCategory = categorizeStatus(statusRaw);
+            const grupoTecnico = detectTechnicalGroup(descricao);
+
+            return {
+                titulo, descricao, escopo, fornecedor: autorRaw,
+                statusRaw, statusCategory, 
+                dataAtualizacao: latestDateStr, 
+                subestacaoCode: subInfo.code, subestacaoName: subInfo.name,
+                fase, projeto, grupoTecnico
+            };
+        });
+        rawData = rawData.concat(mapped);
+    }
+
+    function tryParseDate(dateStr) {
+        if (!dateStr) return null;
+        dateStr = dateStr.trim();
+        const partsBR = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+        if (partsBR) return new Date(partsBR[3], partsBR[2] - 1, partsBR[1]);
+        const partsISO = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (partsISO) return new Date(partsISO[1], partsISO[2] - 1, partsISO[3]);
+        return null;
+    }
+
+    function extractScopeFromPath(path) {
+        if (!path) return '';
+        const parts = path.split(/[/\\]/);
+        const idx = parts.findIndex(p => p.toLowerCase() === 'doc_tecnicos');
+        if (idx !== -1 && idx + 1 < parts.length) return parts[idx + 1];
+        return 'GERAL';
+    }
+
+    // --- Lógica de Negócio ---
+    function detectProject(text) {
+        if(!text) return 'Outros';
+        const upperText = text.toUpperCase();
+        const projects = ['GST001', 'GST002', 'GST003', 'GST004'];
+        for (const proj of projects) if (upperText.includes(proj)) return proj;
+        return 'Outros';
+    }
+
+    function detectSubstation(text) {
+        if(!text) return { code: 'OUTROS', name: 'Outros / Geral' };
+        const upperText = text.toUpperCase();
+        for (const [code, name] of Object.entries(substationMap)) {
+            if (upperText.includes(code)) return { code: code, name: `${code} - ${name}` };
+        }
+        return { code: 'OUTROS', name: 'Outros / Geral' };
+    }
+
+    function detectPhase(text) {
+        if(!text) return 'N/A';
+        const upperText = text.toUpperCase();
+        if (upperText.includes('BAS')) return 'Básico (BAS)';
+        if (upperText.includes('EXE')) return 'Executivo (EXE)';
+        return 'N/A';
+    }
+
+    function detectTechnicalGroup(desc) {
+        if (!desc) return 'Geral / Outros';
+        const d = desc.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (d.includes('terraplenagem')) return 'Terraplenagem';
+        if (d.includes('drenagem')) return 'Drenagem';
+        if (d.includes('requisito') && d.includes('portico')) return 'Requisitos de Pórticos';
+        if (d.includes('requisito') && d.includes('suporte')) return 'Requisitos de Suportes';
+        if (d.includes('malha') && d.includes('terra')) return 'Malha de Terra';
+        if (d.includes('fundacao') && d.includes('equipamento')) return 'Fundações de Equipamentos';
+        if (d.includes('fundacao') && d.includes('portico')) return 'Fundações de Pórticos';
+        if (d.includes('casa de comando') || d.includes('casa de controle')) return 'Casa de Comando';
+        return 'Geral / Outros';
+    }
+
+    function categorizeStatus(status) {
+        if(!status) return 'OUTROS';
+        const s = status.toLowerCase().trim();
+        if (s.includes('aprovado') && !s.includes('não aprovado') && !s.includes('as built')) {
+            if (s === 'aprovado' || s.includes('comentários') || s.includes('transmissora')) return 'VERDE_CLARO';
+        }
+        if (s.includes('para liberação') || s === 'aprovado - as built') return 'VERDE_CLARO';
+        if (s.includes('liberado para execução')) return 'VERDE_ESCURO';
+        if (s.includes('análise') || s.includes('analise')) return 'AZUL';
+        if (s.includes('previsto') || s.includes('futuro')) return 'AMARELO';
+        if (s.includes('não aprovado') || s.includes('recusado') || s.includes('não liberado')) return 'LARANJA';
+        if (s.includes('obsoleto') || s.includes('cancelado')) return 'VERMELHO';
+        if (s.startsWith('aprovado')) return 'VERDE_CLARO';
+        return 'OUTROS';
+    }
+
+    // --- UI Logic ---
+    function createMultiSelect(containerId, labelText, options, filterKey) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = ''; 
+        const label = document.createElement('label'); label.innerText = labelText; container.appendChild(label);
+        const dd = document.createElement('div'); dd.className = 'multiselect-dropdown';
+        const btn = document.createElement('div'); btn.className = 'multiselect-btn'; btn.innerText = 'Todos';
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            document.querySelectorAll('.multiselect-content').forEach(el => { if(el !== content) el.classList.remove('show'); });
+            content.classList.toggle('show');
+        };
+        dd.appendChild(btn);
+        const content = document.createElement('div'); content.className = 'multiselect-content';
+        options.forEach(optVal => {
+            const optDiv = document.createElement('div'); optDiv.className = 'multiselect-option';
+            const checkbox = document.createElement('input'); checkbox.type = 'checkbox';
+            checkbox.value = optVal.value; checkbox.checked = activeFilters[filterKey].includes(optVal.value);
+            checkbox.onchange = () => {
+                if (checkbox.checked) { if (!activeFilters[filterKey].includes(optVal.value)) activeFilters[filterKey].push(optVal.value); }
+                else { activeFilters[filterKey] = activeFilters[filterKey].filter(v => v !== optVal.value); }
+                updateButtonText(btn, filterKey); applyFilters();
+            };
+            const txt = document.createElement('span'); txt.innerText = optVal.label;
+            optDiv.onclick = (e) => { if(e.target !== checkbox) { checkbox.checked = !checkbox.checked; checkbox.onchange(); } };
+            optDiv.appendChild(checkbox); optDiv.appendChild(txt); content.appendChild(optDiv);
+        });
+        dd.appendChild(content); container.appendChild(dd);
+    }
+    function updateButtonText(btnElement, key) {
+        const count = activeFilters[key].length;
+        btnElement.innerText = count === 0 ? 'Todos' : (count === 1 ? '1 Selecionado' : `${count} Selecionados`);
+    }
+    window.onclick = function(event) {
+        if (!event.target.matches('.multiselect-btn') && !event.target.closest('.multiselect-content')) {
+            document.querySelectorAll('.multiselect-content').forEach(el => el.classList.remove('show'));
+        }
+    }
+
+    function initDashboard() {
+        document.getElementById('dashboardPanel').style.display = 'block';
+        document.getElementById('tablePanel').style.display = 'block';
+        populateFilters();
+        applyFilters();
+        initColumnResize();
+    }
+
+    function populateFilters() {
+        const getOptions = (key) => [...new Set(rawData.map(item => item[key]).filter(x => x))].sort().map(v => ({ value: v, label: v }));
+        const statusOpts = Object.keys(statusConfig).filter(k => k !== 'OUTROS').map(k => ({ value: k, label: statusConfig[k].label }));
+        
+        createMultiSelect('filterProjectContainer', 'Projeto', getOptions('projeto'), 'project');
+        createMultiSelect('filterStatusContainer', 'Status', statusOpts, 'status');
+        createMultiSelect('filterSubstationContainer', 'Subestação', getOptions('subestacaoName'), 'substation');
+        createMultiSelect('filterPhaseContainer', 'Fase', getOptions('fase'), 'phase');
+        createMultiSelect('filterScopeContainer', 'Escopo (Pasta)', getOptions('escopo'), 'scope');
+        createMultiSelect('filterTechGroupContainer', 'Disciplina / Grupo Técnico', getOptions('grupoTecnico'), 'technicalGroup');
+        createMultiSelect('filterVendorContainer', 'Fornecedor', getOptions('fornecedor'), 'vendor');
+    }
+
+    function applyFilters() {
+        filteredData = rawData.filter(item => {
+            const matchProject = activeFilters.project.length === 0 || activeFilters.project.includes(item.projeto);
+            const matchStatus = activeFilters.status.length === 0 || activeFilters.status.includes(item.statusCategory);
+            const matchSub = activeFilters.substation.length === 0 || activeFilters.substation.includes(item.subestacaoName);
+            const matchPhase = activeFilters.phase.length === 0 || activeFilters.phase.includes(item.fase);
+            const matchScope = activeFilters.scope.length === 0 || activeFilters.scope.includes(item.escopo);
+            const matchVendor = activeFilters.vendor.length === 0 || activeFilters.vendor.includes(item.fornecedor);
+            const matchTech = activeFilters.technicalGroup.length === 0 || activeFilters.technicalGroup.includes(item.grupoTecnico);
+
+            return matchProject && matchStatus && matchSub && matchPhase && matchScope && matchVendor && matchTech;
+        });
+        document.getElementById('totalCount').innerText = `Total: ${rawData.length}`;
+        document.getElementById('filteredCount').innerText = `Exibindo: ${filteredData.length}`;
+
+        renderTable();
+        renderCharts();
+    }
+
+    function resetFilters() {
+        Object.keys(activeFilters).forEach(k => activeFilters[k] = []);
+        populateFilters();
+        applyFilters();
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = '';
+        if (sortState.column) {
+            filteredData.sort((a, b) => {
+                let valA = a[sortState.column] || ''; let valB = b[sortState.column] || '';
+                if(sortState.column === 'subestacao') { valA = a.subestacaoName; valB = b.subestacaoName; }
+                if(sortState.column === 'status') { valA = a.statusCategory; valB = b.statusCategory; }
+                if(sortState.column === 'data') { valA = a.dataAtualizacao; valB = b.dataAtualizacao; }
+                if(sortState.column === 'data' && valA && valB && valA.includes('/') && valB.includes('/')) {
+                     const toISO = (d) => { const p = d.split('/'); return `${p[2]}-${p[1]}-${p[0]}`; };
+                     try { valA = toISO(valA); valB = toISO(valB); } catch(e){}
+                }
+                const comparison = valA.localeCompare(valB, 'pt-BR', { sensitivity: 'base' });
+                return sortState.asc ? comparison : -comparison;
+            });
+        }
+        filteredData.forEach(item => {
+            const tr = document.createElement('tr');
+            const config = statusConfig[item.statusCategory] || statusConfig['OUTROS'];
+            tr.className = config.class;
+            tr.innerHTML = `<td>${item.titulo}</td><td>${item.descricao}</td><td>${item.escopo}</td><td>${item.fornecedor}</td><td>${item.subestacaoName}</td><td>${item.statusRaw}</td><td>${item.dataAtualizacao}</td>`;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function sortTable(column) {
+        if (sortState.column === column) sortState.asc = !sortState.asc;
+        else { sortState.column = column; sortState.asc = true; }
+        document.querySelectorAll('th span.sort-icon').forEach(span => span.innerText = '⇅');
+        const activeTh = document.querySelector(`th[onclick="sortTable('${column}')"] span`);
+        if(activeTh) activeTh.innerText = sortState.asc ? '▲' : '▼';
+        renderTable();
+    }
+
+    // --- Lógica de Redimensionamento de Colunas ---
+    function initColumnResize() {
+        const table = document.getElementById('docTable');
+        const cols = table.querySelectorAll('th');
+        cols.forEach(col => {
+            if(col.querySelector('.resizer')) return;
+            const resizer = document.createElement('div');
+            resizer.classList.add('resizer');
+            col.appendChild(resizer);
+            createResizableColumn(col, resizer);
+        });
+    }
+
+    function createResizableColumn(col, resizer) {
+        let x = 0;
+        let w = 0;
+        const mouseDownHandler = function(e) {
+            x = e.clientX;
+            const styles = window.getComputedStyle(col);
+            w = parseInt(styles.width, 10);
+            document.addEventListener('mousemove', mouseMoveHandler);
+            document.addEventListener('mouseup', mouseUpHandler);
+            resizer.classList.add('resizing');
+        };
+        const mouseMoveHandler = function(e) {
+            const dx = e.clientX - x;
+            col.style.width = `${w + dx}px`;
+        };
+        const mouseUpHandler = function() {
+            document.removeEventListener('mousemove', mouseMoveHandler);
+            document.removeEventListener('mouseup', mouseUpHandler);
+            resizer.classList.remove('resizing');
+        };
+        resizer.addEventListener('mousedown', mouseDownHandler);
+    }
+
+    // --- Highcharts Logic ---
+    function renderCharts() {
+        // 1. Pizza 3D (Status)
+        const counts = {};
+        Object.keys(statusConfig).forEach(key => counts[key] = 0);
+        filteredData.forEach(item => { counts[item.statusCategory]++; });
+
+        const pieData = [];
+        Object.keys(statusConfig).forEach(key => {
+            if (counts[key] > 0) {
+                pieData.push({
+                    name: statusConfig[key].label,
+                    y: counts[key],
+                    color: statusConfig[key].hex
+                });
+            }
+        });
+        Highcharts.chart('pieChartContainer', {
+            chart: { type: 'pie', options3d: { enabled: true, alpha: 45, beta: 0 } },
+            title: { text: 'Distribuição por Status' },
+            plotOptions: {
+                pie: {
+                    allowPointSelect: true,
+                    cursor: 'pointer',
+                    depth: 35,
+                    dataLabels: { enabled: true, format: '{point.name}: {point.percentage:.1f} %' }
+                }
+            },
+            series: [{ type: 'pie', name: 'Documentos', data: pieData }]
+        });
+        
+        // 2. Colunas 2D (Avanço por Escopo) - MODIFICADO PARA BARRAS NORMAIS (2D)
+        const scopes = [...new Set(filteredData.map(d => d.escopo))].sort();
+        const seriesLiberado = [];
+        const seriesRestante = [];
+
+        scopes.forEach(scope => {
+            const docsInScope = filteredData.filter(d => d.escopo === scope);
+            const total = docsInScope.length;
+            const countLib = docsInScope.filter(d => d.statusCategory === 'VERDE_ESCURO').length;
+            const countRest = total - countLib;
+
+            if (total === 0) {
+                seriesLiberado.push(0);
+                seriesRestante.push(0);
+            } else {
+                seriesLiberado.push(countLib);
+                seriesRestante.push(countRest);
+            }
+        });
+        
+        Highcharts.chart('barChartContainer', {
+            chart: { 
+                type: 'column' // Agora é coluna 2D (normal)
+            },
+            title: { text: '% Avanço (Liberado para Execução)' },
+            xAxis: { 
+                categories: scopes, 
+                crosshair: true, 
+                labels: { rotation: -45 } 
+            },
+            yAxis: { 
+                min: 0, 
+                max: 100, 
+                title: { text: 'Porcentagem (%)' },
+                labels: { format: '{value}%' }
+            },
+            plotOptions: { 
+                column: { 
+                    stacking: 'percent'
+                },
+                series: {
+                     borderWidth: 0,
+                     dataLabels: { enabled: true, format: '{point.percentage:.0f}%' }
+                }
+            },
+            tooltip: {
+                pointFormat: '<span style="color:{series.color}">{series.name}</span>: <b>{point.y} docs</b> ({point.percentage:.1f}%)<br/>'
+            },
+            series: [
+                { 
+                    name: 'Restante (Não Liberado)', 
+                    data: seriesRestante, 
+                    color: '#ffc107', 
+                    dataLabels: { enabled: false } 
+                },
+                { 
+                    name: 'Liberado Execução', 
+                    data: seriesLiberado, 
+                    color: statusConfig['VERDE_ESCURO'].hex 
+                }
+            ]
+        });
+    }
+
+</script>
+
+</body>
+</html>
