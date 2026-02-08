@@ -37,12 +37,17 @@
             --text-purple: #4b0082;
         }
 
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: var(--font-family);
             background: linear-gradient(135deg, #008e9a, #6f6e6e);
             min-height: 100vh;
             color: var(--text-primary);
-            margin: 0;
             padding: 10px;
         }
 
@@ -111,6 +116,51 @@
         .multiselect-option { padding: 8px 12px; cursor: pointer; display: flex; align-items: center; font-size: 0.9rem; }
         .multiselect-option:hover { background-color: #f1f1f1; }
         .multiselect-option input { margin-right: 10px; cursor: pointer; }
+
+        /* Search Input */
+        .search-input {
+            width: 100%;
+            padding: 8px 32px 8px 12px;
+            background-color: white;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9rem;
+            font-family: var(--font-family);
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .search-input:focus {
+            border-color: #66afe9;
+            box-shadow: 0 0 0 3px rgba(102, 175, 233, 0.25);
+        }
+
+        .search-input::placeholder {
+            color: #999;
+            font-style: italic;
+        }
+
+        .search-clear-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #999;
+            font-size: 0.85rem;
+            cursor: pointer;
+            padding: 2px 4px;
+            line-height: 1;
+        }
+
+        .search-clear-btn:hover {
+            color: #333;
+        }
+
+        .search-input-wrapper {
+            position: relative;
+        }
         
         .clear-btn {
             margin-top: 23px;
@@ -118,11 +168,18 @@
             background: #6c757d; color: white; border: none;
             border-radius: 4px; font-size: 0.9rem;
         }
+        .clear-btn:hover {
+            background: #5a6268;
+        }
+
         .delete-btn {
             margin-top: 23px;
             padding: 9px 15px; cursor: pointer;
             background: #dc3545; color: white; border: none;
             border-radius: 4px; font-size: 0.9rem;
+        }
+        .delete-btn:hover {
+            background: #c82333;
         }
 
         .upload-controls {
@@ -178,18 +235,6 @@
         th:hover { background-color: #495057; }
         .sort-icon { font-size: 0.8rem; margin-left: 5px; opacity: 0.7; }
 
-        .resizer {
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 5px;
-            cursor: col-resize;
-            user-select: none;
-            height: 100%;
-            z-index: 1;
-        }
-        .resizer:hover, .resizing { background-color: #66afe9; }
-
         /* Cores das Linhas por Status */
         tr.status-verde-claro { background-color: var(--color-green-light); color: var(--text-green-light); }
         tr.status-azul { background-color: var(--color-blue); color: var(--text-blue); }
@@ -234,8 +279,16 @@
             <div id="filterSubstationContainer" class="filter-group"></div>
             <div id="filterPhaseContainer" class="filter-group"></div>
             <div id="filterScopeContainer" class="filter-group"></div>
-            <div id="filterTechGroupContainer" class="filter-group"></div>
             <div id="filterVendorContainer" class="filter-group"></div>
+            
+            <!-- CAMPO DE BUSCA POR DESCRIÇÃO -->
+            <div class="filter-group" style="min-width: 280px;">
+                <label>Buscar por Descrição</label>
+                <div class="search-input-wrapper">
+                    <input type="text" id="searchInput" class="search-input" placeholder="Digite para filtrar pela descrição...">
+                    <button id="searchClearBtn" class="search-clear-btn" onclick="clearSearch()" style="display: none;">✕</button>
+                </div>
+            </div>
             
             <div class="filter-group" style="flex-direction: row; gap: 10px;">
                 <button class="clear-btn" onclick="resetFilters()">Limpar Filtros</button>
@@ -282,7 +335,7 @@
     let sortState = { column: null, asc: true };
 
     let activeFilters = {
-        project: [], status: [], substation: [], phase: [], scope: [], vendor: [], technicalGroup: [] 
+        project: [], status: [], substation: [], phase: [], scope: [], vendor: [], searchText: ''
     };
 
     const substationMap = {
@@ -326,7 +379,7 @@
                 if (encodingMode === 'AUTO') {
                     const headers = results.meta.fields || [];
                     const firstRow = results.data[0] || {};
-                    const hasErrorChar = headers.some(h => h.includes('')) || Object.values(firstRow).some(v => typeof v === 'string' && v.includes(''));
+                    const hasErrorChar = headers.some(h => h.includes('\ufffd')) || Object.values(firstRow).some(v => typeof v === 'string' && v.includes('\ufffd'));
                     if (hasErrorChar) {
                         Papa.parse(file, {
                             header: true, delimiter: "", encoding: "ISO-8859-1", skipEmptyLines: true,
@@ -443,7 +496,6 @@
         return 'OUTROS';
     }
 
-    // --- Lógica de Ordenação Atualizada ---
     function sortTable(column) {
         if (sortState.column === column) {
             sortState.asc = !sortState.asc;
@@ -452,7 +504,6 @@
             sortState.asc = true;
         }
 
-        // Atualizar ícones visualmente
         document.querySelectorAll('th .sort-icon').forEach(icon => icon.innerText = '⇅');
         const activeHeader = document.querySelector(`th[data-column="${column}"] .sort-icon`);
         if (activeHeader) activeHeader.innerText = sortState.asc ? '▲' : '▼';
@@ -469,14 +520,12 @@
                 let valA = a[sortState.column] || '';
                 let valB = b[sortState.column] || '';
 
-                // Tratamento especial para datas DD/MM/YYYY
                 if (sortState.column === 'dataAtualizacao') {
                     const dateA = tryParseDate(valA) || new Date(0);
                     const dateB = tryParseDate(valB) || new Date(0);
                     return sortState.asc ? dateA - dateB : dateB - dateA;
                 }
 
-                // Ordenação de texto padrão
                 const comparison = String(valA).localeCompare(String(valB), 'pt-BR', { sensitivity: 'base' });
                 return sortState.asc ? comparison : -comparison;
             });
@@ -491,13 +540,11 @@
         });
     }
 
-    // --- Outras Funções do Dashboard ---
     function initDashboard() {
         document.getElementById('dashboardPanel').style.display = 'block';
         document.getElementById('tablePanel').style.display = 'block';
         populateFilters();
         applyFilters();
-        initColumnResize();
     }
 
     function createMultiSelect(containerId, labelText, options, filterKey) {
@@ -548,20 +595,24 @@
         createMultiSelect('filterSubstationContainer', 'Subestação', getOptions('subestacaoName'), 'substation');
         createMultiSelect('filterPhaseContainer', 'Fase', getOptions('fase'), 'phase');
         createMultiSelect('filterScopeContainer', 'Escopo (Pasta)', getOptions('escopo'), 'scope');
-        createMultiSelect('filterTechGroupContainer', 'Disciplina / Grupo Técnico', getOptions('grupoTecnico'), 'technicalGroup');
         createMultiSelect('filterVendorContainer', 'Fornecedor', getOptions('fornecedor'), 'vendor');
     }
 
     function applyFilters() {
+        const searchLower = activeFilters.searchText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        
         filteredData = rawData.filter(item => {
-            return (activeFilters.project.length === 0 || activeFilters.project.includes(item.projeto)) &&
-                   (activeFilters.status.length === 0 || activeFilters.status.includes(item.statusCategory)) &&
-                   (activeFilters.substation.length === 0 || activeFilters.substation.includes(item.subestacaoName)) &&
-                   (activeFilters.phase.length === 0 || activeFilters.phase.includes(item.fase)) &&
-                   (activeFilters.scope.length === 0 || activeFilters.scope.includes(item.escopo)) &&
-                   (activeFilters.vendor.length === 0 || activeFilters.vendor.includes(item.fornecedor)) &&
-                   (activeFilters.technicalGroup.length === 0 || activeFilters.technicalGroup.includes(item.grupoTecnico));
+            const matchProject = activeFilters.project.length === 0 || activeFilters.project.includes(item.projeto);
+            const matchStatus = activeFilters.status.length === 0 || activeFilters.status.includes(item.statusCategory);
+            const matchSubstation = activeFilters.substation.length === 0 || activeFilters.substation.includes(item.subestacaoName);
+            const matchPhase = activeFilters.phase.length === 0 || activeFilters.phase.includes(item.fase);
+            const matchScope = activeFilters.scope.length === 0 || activeFilters.scope.includes(item.escopo);
+            const matchVendor = activeFilters.vendor.length === 0 || activeFilters.vendor.includes(item.fornecedor);
+            const matchSearch = searchLower === '' || item.descricao.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(searchLower);
+
+            return matchProject && matchStatus && matchSubstation && matchPhase && matchScope && matchVendor && matchSearch;
         });
+        
         document.getElementById('totalCount').innerText = `Total: ${rawData.length}`;
         document.getElementById('filteredCount').innerText = `Exibindo: ${filteredData.length}`;
         renderTable();
@@ -569,8 +620,17 @@
     }
 
     function resetFilters() {
-        Object.keys(activeFilters).forEach(k => activeFilters[k] = []);
+        Object.keys(activeFilters).forEach(k => activeFilters[k] = k === 'searchText' ? '' : []);
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchClearBtn').style.display = 'none';
         populateFilters();
+        applyFilters();
+    }
+
+    function clearSearch() {
+        activeFilters.searchText = '';
+        document.getElementById('searchInput').value = '';
+        document.getElementById('searchClearBtn').style.display = 'none';
         applyFilters();
     }
 
@@ -583,22 +643,6 @@
         } else alert("Nenhum item obsoleto encontrado.");
     }
 
-    function initColumnResize() {
-        document.querySelectorAll('th').forEach(col => {
-            const resizer = document.createElement('div');
-            resizer.classList.add('resizer');
-            col.appendChild(resizer);
-            resizer.addEventListener('mousedown', (e) => {
-                const startX = e.clientX;
-                const startW = col.offsetWidth;
-                const onMouseMove = (e) => { col.style.width = (startW + e.clientX - startX) + 'px'; };
-                const onMouseUp = () => { document.removeEventListener('mousemove', onMouseMove); document.removeEventListener('mouseup', onMouseUp); };
-                document.addEventListener('mousemove', onMouseMove);
-                document.addEventListener('mouseup', onMouseUp);
-            });
-        });
-    }
-
     function renderCharts() {
         const counts = {};
         Object.keys(statusConfig).forEach(key => counts[key] = 0);
@@ -609,7 +653,8 @@
             chart: { type: 'pie', options3d: { enabled: true, alpha: 45, beta: 0 } },
             title: { text: 'Distribuição por Status' },
             plotOptions: { pie: { depth: 35, dataLabels: { enabled: true, format: '{point.name}: {point.y}' } } },
-            series: [{ name: 'Documentos', data: pieData }]
+            series: [{ name: 'Documentos', data: pieData }],
+            credits: { enabled: false }
         });
         
         const scopes = [...new Set(filteredData.map(d => d.escopo))].sort();
@@ -625,9 +670,24 @@
             series: [
                 { name: 'Restante', data: seriesRest, color: '#ffc107' },
                 { name: 'Liberado', data: seriesLib, color: '#198754' }
-            ]
+            ],
+            credits: { enabled: false }
         });
     }
+
+    // Event listener para campo de busca
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchInput');
+        const searchClearBtn = document.getElementById('searchClearBtn');
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', function(e) {
+                activeFilters.searchText = e.target.value;
+                searchClearBtn.style.display = e.target.value ? 'block' : 'none';
+                applyFilters();
+            });
+        }
+    });
 </script>
 
 </body>
