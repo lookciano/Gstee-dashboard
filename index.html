@@ -225,7 +225,7 @@
 
         thead { position: sticky; top: 0; background-color: #343a40; color: white; z-index: 10; }
         th, td { 
-            padding: 10px 12px; 
+            padding: 10px 12px;
             text-align: left; 
             border-bottom: 1px solid var(--border-color); 
             word-wrap: break-word; 
@@ -281,7 +281,6 @@
             <div id="filterScopeContainer" class="filter-group"></div>
             <div id="filterVendorContainer" class="filter-group"></div>
             
-            <!-- CAMPO DE BUSCA POR DESCRIÇÃO -->
             <div class="filter-group" style="min-width: 280px;">
                 <label>Buscar por Descrição</label>
                 <div class="search-input-wrapper">
@@ -333,11 +332,9 @@
     let rawData = [];
     let filteredData = [];
     let sortState = { column: null, asc: true };
-
     let activeFilters = {
         project: [], status: [], substation: [], phase: [], scope: [], vendor: [], searchText: ''
     };
-
     const substationMap = {
         'CID02': 'SE Ceará Mirim', 'JPSE': 'SE João Pessoa', 'SE5P1': 'SE Pau Ferro', 'SE5G1': 'SE Garanhuns',
         'MSI08': 'SE Messias', 'PLS': 'SE Pilões', 'CAP3': 'SE Capelinha 3', 'IBC': 'SE Ibicoara', 
@@ -345,11 +342,12 @@
         'OUR': 'SE Ourolândia'
     };
     
+    // Atualizado: VERDE_ESCURO agora engloba "Para Liberação" também na label
     const statusConfig = {
         'VERDE_CLARO': { label: 'Aprovado / Comentários', class: 'status-verde-claro', hex: '#28a745' },
         'AZUL': { label: 'Em Análise', class: 'status-azul', hex: '#007bff' },
         'AMARELO': { label: 'Previsto', class: 'status-amarelo', hex: '#ffc107' },
-        'VERDE_ESCURO': { label: 'Liberado Execução', class: 'status-verde-escuro', hex: '#155724' },
+        'VERDE_ESCURO': { label: 'Liberado Execução / Para Liberação', class: 'status-verde-escuro', hex: '#155724' },
         'LARANJA': { label: 'Não Aprovado / Recusado', class: 'status-laranja-escuro', hex: '#fd7e14' },
         'ATRASADO': { label: 'Atrasado', class: 'status-vermelho', hex: '#dc3545' },
         'OBSOLETO': { label: 'Obsoleto / Cancelado', class: 'status-roxo', hex: '#6f42c1' },
@@ -359,7 +357,7 @@
     function handleFileUpload(event) {
         const files = event.target.files;
         if (!files.length) return;
-        rawData = []; 
+        rawData = [];
         let filesProcessed = 0;
         const userEncoding = document.getElementById('encodingSelect').value;
         Array.from(files).forEach(file => {
@@ -483,13 +481,14 @@
         return 'Geral / Outros';
     }
 
+    // Lógica atualizada: Incluindo 'para liberação' na cor VERDE_ESCURO
     function categorizeStatus(status) {
         if(!status) return 'OUTROS';
         const s = status.toLowerCase().trim();
         if (s.includes('obsoleto') || s.includes('cancelado')) return 'OBSOLETO';
         if (s.includes('atrasado')) return 'ATRASADO';
         if (s.includes('aprovado') && !s.includes('não aprovado')) return 'VERDE_CLARO';
-        if (s.includes('liberado para execução')) return 'VERDE_ESCURO';
+        if (s.includes('liberado para execução') || s.includes('para liberação') || s.includes('para liberacao')) return 'VERDE_ESCURO';
         if (s.includes('análise') || s.includes('analise')) return 'AZUL';
         if (s.includes('previsto')) return 'AMARELO';
         if (s.includes('não aprovado') || s.includes('recusado')) return 'LARANJA';
@@ -600,7 +599,6 @@
 
     function applyFilters() {
         const searchLower = activeFilters.searchText.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        
         filteredData = rawData.filter(item => {
             const matchProject = activeFilters.project.length === 0 || activeFilters.project.includes(item.projeto);
             const matchStatus = activeFilters.status.length === 0 || activeFilters.status.includes(item.statusCategory);
