@@ -295,8 +295,9 @@
     }
 
     function processCSVData(data, fields) {
+        // Fallback genérico para descobrir qual é a base primária pelos cabeçalhos
         const isGuapore = fields.some(f => f.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") === 'codificacao' || f.toLowerCase().includes('estado workflow'));
-        const projectName = isGuapore ? 'Guaporé Sul' : 'Grande Sertão';
+        const baseProjectName = isGuapore ? 'Guaporé Sul' : 'Geral';
 
         const mapped = data.map(row => {
             const keys = Object.keys(row);
@@ -337,13 +338,19 @@
             const subInfo = detectSubstation(titulo + ' ' + descricao);
             let fornecedorRaw = getExact('autor') || getExact('responsavel') || getExact('fornecedor') || '';
             let fornecedor = typeof fornecedorRaw === 'string' ? fornecedorRaw.replace(/<br>/gi, ', ') : fornecedorRaw;
+            
+            // Lógica unificada para Projeto (Puxa do Prefixo, se não tiver usa o Genérico da Base)
+            let projIdentificado = detectProject(titulo);
+            if (projIdentificado === 'Outros') {
+                projIdentificado = baseProjectName;
+            }
 
             return {
                 titulo, descricao, 
                 escopo: getExact('pasta') || getExact('escopo') || extractScopeFromPath(getExact('caminho')) || 'GERAL', 
                 fornecedor, statusRaw, statusCategory: categorizeStatus(statusRaw), 
                 dataAtualizacao: latestDateStr, subestacaoName: subInfo.name, fase: detectPhase(titulo), 
-                projeto: projectName, grupoTecnico: detectTechnicalGroup(descricao)
+                projeto: projIdentificado, grupoTecnico: detectTechnicalGroup(descricao)
             };
         });
         rawData = rawData.concat(mapped);
@@ -364,6 +371,16 @@
         const parts = path.split(/[/\\]/);
         const idx = parts.findIndex(p => p.toLowerCase() === 'doc_tecnicos');
         return (idx !== -1 && idx + 1 < parts.length) ? parts[idx + 1] : '';
+    }
+
+    // NOVA LÓGICA DE DETECÇÃO DE PROJETO
+    function detectProject(text) {
+        const upperText = text.toUpperCase();
+        if (upperText.includes('GST001')) return 'GSI';
+        if (upperText.includes('GST002')) return 'GSII';
+        if (upperText.includes('GST003')) return 'GSIII';
+        if (upperText.includes('GST004')) return 'Guaporé Sul';
+        return 'Outros';
     }
 
     function detectSubstation(text) {
@@ -401,7 +418,6 @@
         if (s.includes('obsoleto') || s.includes('cancelado')) return 'OBSOLETO';
         if (s.includes('atrasado')) return 'ATRASADO';
         if (s.includes('aprovado') && !s.includes('nao aprovado')) return 'VERDE_CLARO';
-        // Atualização: Mapeia "Para Liberação" para o verde escuro do "Liberado para Execução"
         if (s.includes('liberado para execucao') || s.includes('para liberacao')) return 'VERDE_ESCURO';
         if (s.includes('analise')) return 'AZUL';
         if (s.includes('nao aprovado') || s.includes('recusado')) return 'LARANJA';
