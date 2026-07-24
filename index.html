@@ -251,7 +251,7 @@
         'PLS': 'SE Pilões',
         'CAP3': 'SE Capelinha 3',
         'IBC': 'SE Ibicoara',
-        'IGAP': 'SE Igaporã',
+        'IGA': 'SE Igaporã',
         'ITB5': 'SE Itabira 5',
         'JUS': 'SE Jussiape',
         'SJP': 'SE São João do Paraíso',
@@ -262,9 +262,10 @@
     };
 
     // Variantes de sigla no título/descrição → sigla canônica do mapa.
-    // Ex.: JUSS (legada) e JUS identificam a mesma SE Jussiape.
+    // Ex.: JUSS→JUS (Jussiape), IGAP→IGA (Igaporã).
     const substationCodeAliases = {
-        'JUSS': 'JUS'
+        'JUSS': 'JUS',
+        'IGAP': 'IGA'
     };
 
     // Aliases de nome (sem acento, minúsculo) → sigla. Inclui variações usuais da descrição.
@@ -278,7 +279,7 @@
         'capelinha 3': 'CAP3',
         'capelinha': 'CAP3',
         'ibicoara': 'IBC',
-        'igapora': 'IGAP',
+        'igapora': 'IGA',
         'itabira 5': 'ITB5',
         'itabira': 'ITB5',
         'jussiape': 'JUS',
