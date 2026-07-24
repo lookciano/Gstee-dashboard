@@ -253,12 +253,18 @@
         'IBC': 'SE Ibicoara',
         'IGAP': 'SE Igaporã',
         'ITB5': 'SE Itabira 5',
-        'JUSS': 'SE Jussiape',
+        'JUS': 'SE Jussiape',
         'SJP': 'SE São João do Paraíso',
         'OUR': 'SE Ourolândia',
         'JAU': 'SE Jauru',
         'VI3': 'SE Vilhena 3',
         'VIL': 'SE Vilhena'
+    };
+
+    // Variantes de sigla no título/descrição → sigla canônica do mapa.
+    // Ex.: JUSS (legada) e JUS identificam a mesma SE Jussiape.
+    const substationCodeAliases = {
+        'JUSS': 'JUS'
     };
 
     // Aliases de nome (sem acento, minúsculo) → sigla. Inclui variações usuais da descrição.
@@ -275,7 +281,7 @@
         'igapora': 'IGAP',
         'itabira 5': 'ITB5',
         'itabira': 'ITB5',
-        'jussiape': 'JUSS',
+        'jussiape': 'JUS',
         'sao joao do paraiso': 'SJP',
         'ourolandia': 'OUR',
         'jauru': 'JAU',
@@ -429,15 +435,19 @@
     }
 
     // Extrai a sigla como token do código/título (evita falso positivo em meio a palavra).
-    // Aceita fronteiras por não-letra/não-dígito; ex: GST002-JAU-EXE-001, JAU_xxx, (VI3).
+    // Aceita fronteiras por não-letra/não-dígito; ex: GST002-JAU-EXE-001, JUS_xxx, (VI3).
+    // Retorna sempre a sigla canônica (ex.: JUSS → JUS).
     function findCodeInText(text) {
         if (!text) return null;
         const upper = String(text).toUpperCase();
-        // Codigos mais longos primeiro para reduzir ambiguidade (ex: SE5P1 antes de SE)
-        const codes = Object.keys(substationMap).sort((a, b) => b.length - a.length);
+        // Códigos canônicos + variantes; mais longos primeiro (JUSS antes de JUS, SE5P1 antes de SE)
+        const codes = [
+            ...Object.keys(substationMap),
+            ...Object.keys(substationCodeAliases)
+        ].sort((a, b) => b.length - a.length);
         for (const code of codes) {
             const re = new RegExp(`(^|[^A-Z0-9])${code}([^A-Z0-9]|$)`);
-            if (re.test(upper)) return code;
+            if (re.test(upper)) return substationCodeAliases[code] || code;
         }
         return null;
     }
