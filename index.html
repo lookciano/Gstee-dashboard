@@ -466,12 +466,19 @@
 
     /**
      * Identifica a subestação com esta ordem de prioridade:
+     * 0) Prefixo especial no TÍTULO (ex.: TSN… → SE Ibicoara)
      * 1) Sigla no TÍTULO (código do documento) — mais confiável quando a descrição omite a SE
      * 2) Nome canônico / alias na DESCRIÇÃO
      * 3) Sigla na DESCRIÇÃO (fallback)
      * 4) Nome canônico / alias no TÍTULO (casos raros)
      */
     function detectSubstation(titulo, descricao) {
+        // Títulos que começam com TSN referem-se à SE Ibicoara (IBC)
+        const tituloTrim = String(titulo || '').trim().toUpperCase();
+        if (/^TSN([^A-Z0-9]|$)/.test(tituloTrim)) {
+            return { code: 'IBC', name: `IBC - ${substationMap['IBC']}` };
+        }
+
         let code = findCodeInText(titulo);
         if (!code) code = findNameAliasInText(descricao);
         if (!code) code = findCodeInText(descricao);
