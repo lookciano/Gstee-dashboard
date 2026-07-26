@@ -667,14 +667,50 @@
         const scopes = [...new Set(filteredData.map(d => d.escopo))].sort();
         const seriesLib = scopes.map(s => filteredData.filter(d => d.escopo === s && d.statusCategory === 'VERDE_ESCURO').length);
         const seriesRest = scopes.map((s, i) => filteredData.filter(d => d.escopo === s).length - seriesLib[i]);
-        
+        // % atual de avanço (Liberado) por escopo — só o valor corrente da barra
+        const seriesLibWithPct = seriesLib.map((lib, i) => {
+            const total = lib + seriesRest[i];
+            const pct = total > 0 ? Math.round((lib / total) * 100) : 0;
+            return { y: lib, pctAvanco: pct };
+        });
+
         Highcharts.chart('barChartContainer', {
             chart: { type: 'column' },
             title: { text: '% Avanço (Liberado para Execução)' },
             xAxis: { categories: scopes, labels: { rotation: -45 } },
-            yAxis: { min: 0, title: { text: 'Quantidade' } },
-            plotOptions: { column: { stacking: 'percent' } },
-            series: [ { name: 'Restante', data: seriesRest, color: '#ffc107' }, { name: 'Liberado', data: seriesLib, color: '#198754' } ],
+            yAxis: { min: 0, max: 100, title: { text: '%' } },
+            plotOptions: {
+                column: {
+                    stacking: 'percent',
+                    dataLabels: {
+                        enabled: true,
+                        // Mostra apenas na série do topo da pilha (Liberado = avanço executado)
+                        formatter: function () {
+                            if (this.series.name !== 'Liberado') return null;
+                            const pct = (this.point && this.point.pctAvanco != null)
+                                ? this.point.pctAvanco
+                                : Math.round(this.percentage || 0);
+                            return pct + '%';
+                        },
+                        style: {
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            color: '#155724',
+                            textOutline: '1px contrast'
+                        },
+                        verticalAlign: 'top',
+                        align: 'center',
+                        inside: false,
+                        crop: false,
+                        overflow: 'allow',
+                        y: -6
+                    }
+                }
+            },
+            series: [
+                { name: 'Restante', data: seriesRest, color: '#ffc107', dataLabels: { enabled: false } },
+                { name: 'Liberado', data: seriesLibWithPct, color: '#198754' }
+            ],
             credits: { enabled: false }
         });
     }
